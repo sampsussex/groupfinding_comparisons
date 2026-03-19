@@ -1,37 +1,148 @@
 import numpy as np
-from astropy.table import Table
+import pandas as pd
 from collections import Counter
 from typing import List, Tuple
 
 
-def load_sam_groups(file):
-    # Should be a dat file, with column names in header.
-    groups = Table.read(file, format='ascii')
+def load_sussex_groups(file):
+    # group_id\tcentre_ra\tcentre_dec\tcentre_redshift
+    # group_luminosity\tstellar_mass_total
+    # stellar_mass_3_biggest\tbcg_abs_mag\tmultiplicity
+    # bcg_is_red\tr_200
+    groups = pd.read_csv(file, delim_whitespace=True)
     return groups
 
 
 def load_nessie_groups(file):
-    # should be dat file as well
-    groups = Table.read(file, format='ascii')
+    # should be dat file as well]
+    # Should have the columns; 
+    # ids
+    # iter_ras
+    # iter_decs
+    # iter_redshifts
+    # iter_idxs
+    # median_redshifts,
+    # distances
+    # r50s
+    # r100s
+    # rsigmas
+    # multiplicity
+    # velocity_dispersion_gap
+    # velocity_dispersion_gap_err
+    # raw_masses
+    # estimated_masses
+    # vd_corrected_masses
+    groups = pd.read_csv(file, delim_whitespace=True)
     return groups
 
 
+def load_sharks_groups(groups_file, sharks_data):
+    # Will contain loads of columns, and id_fof as group column, and id_galaxy_sky as galaxy id column.
+    group_properties = pd.read_parquet(groups_file)
+    # Find all id_fofs in sharks data
+    group_properties = group_properties[group_properties['id_fof'].isin(sharks_data['group_id_fof'])]
+
+    return group_properties
+
+
 def load_nessie_membership(file):
-    # should be dat file as well
-    return Table.read(file, format='ascii')
+    # should be dat file as well, with galaxy_id, and group_id columns
+    df = pd.read_csv(file, delim_whitespace=True)
+    if 'group_id' in df.columns():
+        df.rename(columns = {'group_id': 'group_id_nessie'}, inplace=True)
+
+    if 'ids' in df.columns():
+        df.rename(columns = {'ids': 'galaxy_id'}, inplace=True)
+    
+    if 'id_group_sky' in df.columns():
+       df.rename(columns = {'id_group_sky': 'galaxy_id'}, inplace=True)
+
+    df['galaxy_id'] = df['galaxy_id'].astype(np.int64)
+
+    return df
 
 
-def load_sam_membership(file):
-    # should be dat file as well
-    return Table.read(file, format='ascii')
+def load_sussex_membership(file):
+    # should be dat file as well, with galaxy_id, and group_id columns
+    # change group name to group_id_sam if called group_id
+    df = pd.read_csv(file, delim_whitespace=True)
+    if 'group_id' in df.columns():
+        df.rename(columns = {'group_id': 'group_id_sussex'}, inplace=True)
 
+    if 'ids' in df.columns():
+        df.rename(columns = {'ids': 'galaxy_id'}, inplace=True)
+    
+    if 'id_group_sky' in df.columns():
+       df.rename(columns = {'id_group_sky': 'galaxy_id'}, inplace=True)
 
-def load_sharks_membership(file):
-    return Table.read(file, format='parquet')
+    df['galaxy_id'] = df['galaxy_id'].astype(np.int64)
+
+    return df
+
+def load_sharks_data(file):
+    # Will contain loads of columns, and id_fof as group column, and id_galaxy_sky as galaxy id column.
+    return pd.read_parquet(file)
 
 
 def load_gama_data(file):
-    return Table.read(file, format = 'parquet')
+    # Will contain loads of columns, and no group column, and uberID as galaxy id column.
+    return pd.read_parquet(file)
+
+
+def load_group_set_gama(gama_file = '/Users/sp624AA/Downloads/gama3/groupfinding_gama4_processed.parquet', 
+                        nessie_members_file = '/Users/sp624AA/Downloads/groupfinder_results/gama/',
+                        sussex_members_file = '/Users/sp624AA/Downloads/groupfinder_results/gama/',
+                        nessie_groups_file = '/Users/sp624AA/Downloads/groupfinder_results/gama',
+                        sussex_groups_file= '/Users/sp624AA/Downloads/groupfinder_results/gama'
+                        ):
+    # No fiducial groups. 
+    # Galaxy id called uberID
+    # Load gama_data, and join nessie and sam group ids. 
+    # Load group data for nessie and sussex.
+    gama = load_gama_data(gama_file)
+    nessie_groups = load_nessie_groups(nessie_groups_file)
+    sussex_groups = load_sussex_groups(sussex_groups_file)
+
+    gama = gama.merge(load_nessie_membership(nessie_members_file), left_on='uberID', right_on='galaxy_id', how='left')
+    gama = gama.merge(load_sussex_membership(sussex_members_file), left_on='uberID', right_on='galaxy_id', how='left')
+
+    bijective_matches = bijective_group_mapping(gama['group_id_nessie'], gama['group_id_sussex'])
+    # I am only doing this one way, i wonder if this should be done both?
+
+    return gama, nessie_groups, sussex_groups, bijective_matches
+
+
+def load_group_set_sharks_like_gama(sharks_file = '/Users/sp624AA/Downloads/mocks/gama_like_from_groupfinding_cat.parquet',
+                                    nessie_members_file = '/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/',
+                                    sussex_memebers_file = '/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/',
+                                    nessie_groups_file = '/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/',
+                                    sussex_groups_file = '/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/'):
+    # fiducial simulated groups have id_fof as group column.
+    # Galaxy id called id_galaxy_sky.
+    sharks_data = load_sharks_data(sharks_file)
+    nessie_members = load_nessie_membership(nessie_members_file)
+    sussex_members = load_sussex_membership(sussex_memebers_file)
+    nessie_groups = load_nessie_groups(nessie_groups_file)
+    sussex_groups = load_sussex_groups(sussex_groups_file)
+    sharks_groups = load_sharks_groups(sharks_file, sharks_data)
+
+    # Join sharks with nessie and sussex group ids
+    sharks_data = sharks_data.merge(nessie_members, on='galaxy_id', how='left')
+    sharks_data = sharks_data.merge(sussex_members, on='galaxy_id', how='left')
+
+    # take group properties from nessie and sussex, and add to sharks data.
+    # bijectively match sharks groups to nessie and sussex groups, and add group properties to sharks group data
+    sharks_mapping_nessie = bijective_group_mapping(sharks_data['group_id_nessie'], sharks_data['group_id_fof'])
+    sharks_mapping_sussex = bijective_group_mapping(sharks_data['group_id_sussex'], sharks_data['group_id_fof'])
+
+    # Add group properties from sharks and nessie to sharks group data, using mapping. 
+    # Fill in NaNs for groups that don't match.
+    # Add nessie / sussex prefix to group properties to avoid confusion.
+
+    sharks_groups = sharks_groups.merge(nessie_groups, left_on=sharks_mapping_nessie[0], right_on=nessie_groups['ids'], how='left', suffixes=('', '_nessie'))
+    sharks_groups = sharks_groups.merge(sussex_groups, left_on=sharks_mapping_sussex[0], right_on=sussex_groups['group_id_sussex'], how='left', suffixes=('', '_sussex'))
+
+    return sharks_data, sharks_groups, nessie_groups, sussex_groups
 
 
 def bijective_group_mapping(group_ids_1: List[int], group_ids_2: List[int]) -> Tuple[np.ndarray, np.ndarray]:
@@ -240,3 +351,4 @@ def s_score(measured_groups: List[int], mock_groups: List[int], groupcut: int) -
     fof_q = q_num_meas / q_den_meas
 
     return mock_e * fof_e * mock_q * fof_q, mock_e * fof_e, mock_q * fof_q
+
