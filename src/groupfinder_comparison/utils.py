@@ -87,6 +87,7 @@ def load_membership_with_optional_gama_mapping(
     output_group_name: str,
     gama_id_mapping_file: Optional[str] = None,
 ) -> pd.DataFrame:
+    df = read_table(file).copy()
 
     # If this is a GAMA-style membership table with CATAID rather than uberID,
     # convert to uberID using the supplied mapping.
@@ -263,13 +264,18 @@ def load_group_set_sharks_like_gama(
     # restrict to real Sharks groups
     sharks_groups = sharks_groups[sharks_groups["group_id"] != -1].copy()
 
+    truth_col = "id_fof"
     if "id_fof" in sharks_data.columns and "group_id" not in sharks_data.columns:
         sharks_data = sharks_data.rename(columns={"id_fof": "group_id_truth"})
-    elif "id_fof" in sharks_groups.columns and "group_id" not in sharks_groups.columns:
+        truth_col = "group_id_truth"
+    elif "group_id_truth" in sharks_data.columns:
+        truth_col = "group_id_truth"
+
+    if "id_fof" in sharks_groups.columns and "group_id" not in sharks_groups.columns:
         sharks_groups = sharks_groups.rename(columns={"id_fof": "group_id"})
         sharks_groups = standardise_group_properties(sharks_groups)
 
-    truth_ids = sharks_data["id_fof"].to_numpy()
+    truth_ids = sharks_data[truth_col].to_numpy()
 
     nessie_to_truth = bijective_group_mapping(
         sharks_data["group_id_nessie"].to_numpy(),
