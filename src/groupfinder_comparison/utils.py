@@ -17,7 +17,7 @@ def read_table(file: str) -> pd.DataFrame:
     elif file.endswith(".parquet"):
         return pd.read_parquet(file)
     else:
-        return pd.read_csv(file, sep=r"\s+")
+        return pd.read_csv(file, sep=r"\s+", comment="#", names=["galaxy_id", "group_id"])
 
 
 # ------------------------------------------------------------------
@@ -26,8 +26,8 @@ def read_table(file: str) -> pd.DataFrame:
 
 def standardise_membership(
     df: pd.DataFrame,
-    galaxy_col_candidates=("galaxy_id", "uberID", "ids", "id_galaxy_sky", "CATAID"),
-    group_col_candidates=("group_id", "GroupID", "group_id_nessie", "group_id_sussex", "id_fof"),
+    galaxy_col_candidates=("galaxy_id", "uberID", "ids", "id_galaxy_sky", "CATAID", "UberID"),
+    group_col_candidates=("group_id", "GroupID", "group_id_nessie", "group_id_sussex", "id_fof", "group_id_finder"),
     group_name="group_id",
 ) -> pd.DataFrame:
     df = df.copy()
@@ -187,10 +187,10 @@ def bijective_group_mapping(
 
 def load_group_set_gama(
     gama_file: str = "/Users/sp624AA/Downloads/gama3/groupfinding_gama4_processed.parquet",
-    nessie_members_file: str = "/Users/sp624AA/Downloads/gama3/G3CGalv10.fits",
-    sussex_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/gama/gal_groups_gama.dat",
-    nessie_groups_file: str = "/Users/sp624AA/Downloads/gama3/G3CFoFGroupv10.fits",
-    sussex_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/gama/gal_groups_gama_properties.dat",
+    nessie_members_file: str = "/Users/sp624AA/Downloads/gama3/G3CGalv11.fits",
+    sussex_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/gama/gal_groups_gama.parquet",
+    nessie_groups_file: str = "/Users/sp624AA/Downloads/gama3/G3CFoFGroupv11.fits",
+    sussex_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/gama/gal_groups_gama_properties.parquet",
     gama_id_mapping_file: str = "/Users/sp624AA/Downloads/gama3/gkvGamaIIMatchesv01.fits",
 ):
     gama = load_gama_data(gama_file).copy()
@@ -237,7 +237,7 @@ def load_group_set_gama(
 
 def load_group_set_sharks_like_gama(
     sharks_galaxy_file: str = "/Users/sp624AA/Downloads/mocks/gama_like_from_groupfinding_cat.parquet",
-    sharks_group_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/sharks_groups.parquet",
+    sharks_group_file: str = "/Users/sp624AA/Downloads/group_finding_mocks/groups_shark.parquet",
     nessie_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/nessie_membership.parquet",
     sussex_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/gal_groups_sharks_gama_like.dat",
     nessie_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/nessie_groups.parquet",
