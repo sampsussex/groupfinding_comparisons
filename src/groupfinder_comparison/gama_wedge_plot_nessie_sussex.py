@@ -238,7 +238,7 @@ def overlay_wedge_catalogs(
             continue
         col = spec["z"] if use_redshift_y else "Dc_Mpc"
         all_rmax = max(all_rmax, prep[col].max())
-    all_rmax *= 1.05
+    all_rmax *= 1.0
 
     # --- compute per-panel geometry ------------------------------------------
     # Wedge opens rightward: data_w >> data_h (wide and thin).
@@ -381,9 +381,19 @@ fig, axes, prepared = overlay_wedge_catalogs(
     use_redshift_y=True,   # more wedge-plot-like
 )
 plt.savefig("../../plots/gama_wedge_overlay.png", dpi=300, bbox_inches="tight")
-plt.show()
+#plt.show()
 
-# %%
+plt.clf()
+nessie_groups = nessie_groups[nessie_groups['IterCenZ'] < 0.3]
+nessie_groups = nessie_groups[nessie_groups['IterCenRA'] > 40.]
+bins = np.linspace(2, 51, 50)
 
-
+plt.hist(nessie_groups['Nfof'], bins=bins, alpha=0.5, label='Nessie', color='red', log= True)
+plt.hist(sussex_groups['multiplicity'], bins=bins, alpha=0.5, label='Sussex', color='blue', log= True)
+plt.legend()
+plt.xlabel('Group Multiplicity')
+plt.ylabel('Number of Groups')
+plt.grid()
+plt.title('Group Multiplicity on GAMA')
+plt.savefig('../../plots/gama_multiplicity_histogram.png')
 

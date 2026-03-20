@@ -82,6 +82,117 @@ def load_sharks_data(file: str) -> pd.DataFrame:
 
     return df
 
+
+def load_sharks_groups(sharks_data: pd.DataFrame) -> pd.DataFrame:
+    group_col = "id_fof"
+    host_id_col = "id_group_sky"
+    mass_col = "mass_virial_hosthalo"
+    mag_col = "mag_abs_r_VST"
+    stellar_mass_col = "stellar_mass"
+    gals = sharks_data.copy()
+
+
+    gals["is_bcg"] = False
+
+    ungrouped = gals[group_col].eq(-1)
+    gals.loc[ungrouped, "is_bcg"] = True
+
+    valid_grouped = (
+        gals[group_col].notna()
+        & gals[group_col].ne(-1)
+        & gals[mag_col].notna()
+        & gals[stellar_mass_col].notna()
+    )
+
+    # Bcg centres....
+    bcg_idx = gals.loc[valid_grouped].groupby(group_col)[mag_col].idxmin()
+    gals.loc[bcg_idx, "is_bcg"] = True
+
+    bcg_broadcast_cols = ["ra", "dec", "redshift_observed", mag_col, stellar_mass_col]
+
+    for col in bcg_broadcast_cols:
+        gals[f"{col}_bcg"] = gals[col]
+
+    bcg_rows = gals.loc[
+        gals["is_bcg"] & gals[group_col].ne(-1),
+        [group_col] + bcg_broadcast_cols
+    ].drop_duplicates(subset=[group_col])
+
+    for col in bcg_broadcast_cols:
+        mapper = bcg_rows.set_index(group_col)[col]
+        gals.loc[gals[group_col].ne(-1), f"{col}_bcg"] = (
+            gals.loc[gals[group_col].ne(-1), group_col].map(mapper)
+        )
+
+    gals["log_stellar_mass_bcg"] = np.log10(
+        gals["stellar_mass_bcg"].where(gals["stellar_mass_bcg"] > 0)
+    )
+
+    gals["fof_halo_mass"] = np.nan
+
+    grouped = gals[group_col].notna() & gals[group_col].ne(-1)
+    fof_mass = (
+        gals.loc[grouped, [group_col, host_id_col, mass_col]]
+        .dropna()
+        .drop_duplicates(subset=[group_col, host_id_col])
+        .groupby(group_col, sort=False)[mass_col]
+        .sum()
+    )
+
+    gals.loc[grouped, "fof_halo_mass"] = gals.loc[grouped, group_col].map(fof_mass)
+    gals.loc[ungrouped, "fof_halo_mass"] = gals.loc[ungrouped, mass_col]
+    gals["log_fof_halo_mass"] = np.log10(gals["fof_halo_mass"].where(gals["fof_halo_mass"] > 0))
+
+
+
+    M_sun_r = 4.63
+    gals["L"] = 10.0 ** (-0.4 * (gals[mag_col] - M_sun_r))
+
+    # Only sum real groups; leave ungrouped as self-values
+    gals["group_L"] = gals["L"]
+    real_group_L = gals.loc[grouped].groupby(group_col)["L"].sum()
+    gals.loc[grouped, "group_L"] = gals.loc[grouped, group_col].map(real_group_L)
+    gals["log_group_L"] = np.log10(gals["group_L"].where(gals["group_L"] > 0))
+
+    gals["n_group_fof"] = 1
+    real_group_n = gals.loc[grouped].groupby(group_col).size()
+    gals.loc[grouped, "n_group_fof"] = gals.loc[grouped, group_col].map(real_group_n).astype(int)
+
+    gals["group_stellar_mass"] = gals["stellar_mass"]
+    real_group_sm = gals.loc[grouped].groupby(group_col)["stellar_mass"].sum()
+    gals.loc[grouped, "group_stellar_mass"] = gals.loc[grouped, group_col].map(real_group_sm)
+    gals["log_group_stellar_mass"] = np.log10(
+        gals["group_stellar_mass"].where(gals["group_stellar_mass"] > 0)
+    )
+
+    group_cols = [
+    "ra_bcg",
+    "dec_bcg",
+    "redshift_observed_bcg",
+    f"{mag_col}_bcg",
+    "stellar_mass_bcg",
+    "log_stellar_mass_bcg",
+    "fof_halo_mass",
+    "log_fof_halo_mass",
+    "group_L",
+    "log_group_L",
+    "n_group_fof",
+    "group_stellar_mass",
+    "log_group_stellar_mass",]
+
+    groups = (
+        gals.loc[gals[group_col].ne(-1)]
+        .groupby(group_col, sort=False)[group_cols]
+        .first()
+        .reset_index()
+    )
+    del gals
+    
+    # rename id_fof to group_id
+    groups = groups.rename(columns={group_col: "group_id"})
+    
+    return groups
+
 def load_membership_with_optional_gama_mapping(
     file: str,
     output_group_name: str,
@@ -237,14 +348,14 @@ def load_group_set_gama(
 
 def load_group_set_sharks_like_gama(
     sharks_galaxy_file: str = "/Users/sp624AA/Downloads/mocks/gama_like_from_groupfinding_cat.parquet",
-    sharks_group_file: str = "/Users/sp624AA/Downloads/group_finding_mocks/groups_shark.parquet",
+    #sharks_group_file: str = "/Users/sp624AA/Downloads/group_finding_mocks/groups_shark.parquet",
     nessie_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/nessie_membership.parquet",
-    sussex_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/gal_groups_sharks_gama_like.dat",
+    sussex_members_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/gal_groups_sharks_gama_like.parquet",
     nessie_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/nessie_groups.parquet",
-    sussex_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/gal_groups_sharks_gama_like_properties.dat",
+    sussex_groups_file: str = "/Users/sp624AA/Downloads/groupfinder_results/sharks_gama_like/gal_groups_sharks_gama_like_properties.parquet",
 ):
     sharks_data = load_sharks_data(sharks_galaxy_file).copy()
-    sharks_groups = load_group_properties(sharks_group_file).copy()
+    sharks_groups = load_sharks_groups(sharks_data).copy()
     nessie_members = load_membership_with_optional_gama_mapping(
         nessie_members_file,
         output_group_name="group_id_nessie",
